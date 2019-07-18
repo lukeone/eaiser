@@ -1,47 +1,65 @@
 # -*- coding: utf-8 -*-
 
 from abc import ABCMeta
-from prompt_toolkit import PromptSession
-from ..exception import CommandNotFound
+from prompt_toolkit import PromptSession, print_formatted_text, HTML
+import tableprint
 
 
-def entrypoint(method):
+def entrypoint(alias=None, doc=""):
     """Decorate one method as a command entrypoint. like:
 
-            @entrypoint
+            @entrypoint()
             def help(self):
                 pass
 
-    :param method: decorated method of topic class
+    :param alias: give one entrypoint multi command name
+    :param doc: the command description
     :return: method
     """
-    method.__entrypoint = True
-    return method
+    alias = [] if alias is None else alias
+
+    def wrap(method):
+        """
+        :param method: decorated method of topic class
+        :return:
+        """
+        name = method.__name__
+        if name not in alias:
+            alias.insert(0, name)
+
+        method._entrypoint = True
+        method._flags = alias
+        method._doc = doc
+        return method
+    return wrap
 
 
 class TopicMeta(ABCMeta):
 
-    # all topic class, eg: {"": DefaultTopic, "other": OtherTopic}
-    _topic_classes = {}
-    # topic entrypoint per topic, eg: {'': {'select_topic': <function Topic.select_topic at 0x109d9bc80>}}
-    _topic_entrypoints = {}
+    # all topic class
+    # eg: {"": DefaultTopic, "other": OtherTopic}
+    topic_classes = {}
+
+    # topic entrypoint per topic
+    # eg: {'': {'select_topic': <function Topic.select_topic at 0x109d9bc80>}}
+    topic_entrypoints = {}
 
     def __init__(self, name, bases, members):
         super(TopicMeta, self).__init__(name, bases, members)
         mcls = self.__class__
 
-        mcls._topic_classes[self._name] = self
-        mcls._topic_entrypoints[self._name] = {}
+        mcls.topic_classes[self._name] = self
+        mcls.topic_entrypoints[self._name] = {}
 
         for attr, method in members.items():
-            if not getattr(method, "__entrypoint", False):
+            if not getattr(method, "_entrypoint", False):
                 continue
-            mcls._topic_entrypoints[self._name][attr] = method
+            mcls.topic_entrypoints[self._name].update(dict.fromkeys(method._flags, method))
 
         for base in bases:
             if not isinstance(base, mcls):
                 continue
-            mcls._topic_entrypoints[self._name].update(mcls._topic_entrypoints[base._name])
+            mcls.topic_entrypoints[self._name].update(mcls.topic_entrypoints[base._name])
 
     @classmethod
     def create_topic(mcls, name, context):
@@ -52,19 +70,10 @@ class TopicMeta(ABCMeta):
         :param context: `easier.Context` object
         :return: topic object
         """
-        assert name in mcls._topic_classes
-        topic = mcls._topic_classes[name](context)
+        if name not in mcls.topic_classes:
+            return None
+        topic = mcls.topic_classes[name](context)
         return topic
-
-    @classmethod
-    def get_entrypoint(mcls, name, cmd):
-        """return entrypoint function object, if not exist, return None
-        
-        :param name: topic name
-        :param cmd: entrypoint function name
-        :return: function object
-        """
-        return mcls._topic_entrypoints.get(name, {}).get(cmd, None)
 
 
 class Topic(object, metaclass=TopicMeta):
@@ -81,17 +90,44 @@ class Topic(object, metaclass=TopicMeta):
         self.context = None
         self.session = None
 
+    def _get_entrypoint(self, cmd):
+        """find entrypoint by command name
+
+        :param cmd: command
+        :return: entrypoint function object
+        """
+        return TopicMeta.topic_entrypoints.get(self._name, {}).get(cmd, None)
+
+    def _get_entrypoints(self):
+        """return all entrypoint in this topic
+
+        :return: all entrypoint data
+        """
+        return TopicMeta.topic_entrypoints.get(self._name, {})
+
+    @staticmethod
+    def _get_topics():
+        """return all topic name
+        """
+        return {name: obj for name, obj in TopicMeta.topic_classes.items() if bool(name)}
+
     def execute_command(self, cmd, content):
         """determine entrypoint funcion, and call it.
-        
+
         :param cmd: command name, also is entrypoint function name
         :param content: command content, also is entrypoint function arguments
         """
-        entrypoint = TopicMeta.get_entrypoint(self.name, cmd)
+        entrypoint = self._get_entrypoint(cmd)
         if not entrypoint:
-            raise CommandNotFound(command=cmd)
-        res = entrypoint(self, content)
-        return res
+            self.command_not_found(cmd)
+            return
+        entrypoint(self, content)
+
+    def command_not_found(self, cmd):
+        print_formatted_text(HTML("<ansired>invalid command</ansired>"))
+
+    def topic_not_found(self, name):
+        print_formatted_text(HTML("<ansired>topic '{}' not found</ansired>".format(name)))
 
     @property
     def name(self):
@@ -99,22 +135,56 @@ class Topic(object, metaclass=TopicMeta):
         """
         return self._name
 
-    @entrypoint
+    @entrypoint(doc="change topic, eg: > 'select_topic plan'")
     def select_topic(self, name):
-        """switch topic
+        """change topic
 
         :param name: topic name
         :return:
         """
         topic = self.context.get_topic(name)
+        if not topic:
+            self.topic_not_found(name)
+            return
         self.context.set_current(topic)
+
+    @entrypoint(doc="show all topic")
+    def list_topics(self, *args):
+        """show topic list
+        """
+        rows = []
+        header = ("topic", "description")
+        mx_topic_size = len(header[0])
+        mx_desc_size = len(header[1])
+
+        for topic, tcls in self._get_topics().items():
+            mx_topic_size = max(mx_topic_size, len(topic))
+            mx_desc_size = max(mx_desc_size, len(tcls._description))
+            rows.append((topic, tcls._description))
+
+        tableprint.table(rows, ("topic", "description"), width=(mx_topic_size + 5, mx_desc_size + 5))
+
+    @entrypoint(alias=["quit"], doc="quit program")
+    def exit(self, *args):
+        raise EOFError
+
+    @entrypoint(doc="show all available commands")
+    def help(self, *args, **kwargs):
+        rows = []
+        header = ("command", "description")
+        mx_cmd_size = len(header[0])
+        mx_desc_size = len(header[1])
+
+        for name, obj in self._get_entrypoints().items():
+            mx_cmd_size = max(mx_cmd_size, len(name))
+            mx_desc_size = max(mx_desc_size, len(obj._doc))
+            rows.append((name, obj._doc))
+
+        rows.sort(key=lambda k: "z" if k[0] in ["exit", "quit", "help"] else k[0])
+        tableprint.table(rows, header, width=(mx_cmd_size + 5, mx_desc_size + 5))
 
 
 class DefaultTopic(Topic):
 
-    _name = ""
-
-
-if __name__ == "__main__":
-    t1 = DefaultTopic(x=1)
-    print(t1.name)
+    _name = "default"
+    _description = "default topic"

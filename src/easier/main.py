@@ -1,18 +1,19 @@
 # -*- coding: utf-8 -*-
 import re
+import tableprint
 
 from .context import Context
 
-pattern = re.compile(r"\\(?P<cmd>\w+) ?(?P<content>\S+)?")
+pattern = re.compile(r"(?P<cmd>\w+) ?(?P<content>.*)?")
 
 
 def parse_command(text):
     """extract command and command content from input text
 
         such as:
-            parse_command("/select_topic plan")
+            parse_command("select_topic plan")
             >> {"command": "select_topic", "content": "plan"}
-    
+
     :param text: the input text
     :return:
     """
@@ -27,28 +28,29 @@ def process_input(context):
         so you might put it in a loop, such as:
             while True:
                 process_input(context)
-    
+
     :param context: context
     :return: next topic
     """
 
     topic = context.current
 
-    inp = topic.session.prompt()
-    if inp in ["exit", "quit"]:
-        raise EOFError
+    inp = topic.session.prompt().strip()
+    if not inp:
+        return
 
     parsed = parse_command(inp)
     if parsed:
-        cmd, val = parsed["cmd"].strip(), parsed["content"].strip()
-        topic = context.current
+        cmd, val = parsed["cmd"].strip(), (parsed["content"] or "").strip()
         topic.execute_command(cmd, val)
     else:
-        print("invalid input")
+        topic.command_not_found(inp)
     return topic
 
 
 def main():
+    tableprint.banner("Easier Life! Easier Work!")
+
     context = Context()
     while True:
         try:
@@ -58,7 +60,3 @@ def main():
         except EOFError:
             break
     print('GoodBye!')
-
-
-if __name__ == "__main__":
-    main()

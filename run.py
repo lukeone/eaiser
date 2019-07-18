@@ -1,4 +1,4 @@
 # -*- coding: utf-8 -*-
-from eaiser.main import main
+from easier.main import main
 
 main()

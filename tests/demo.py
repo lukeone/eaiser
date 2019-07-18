@@ -82,7 +82,5 @@ def prompts():
 
 if __name__ == '__main__':
     from prompt_toolkit import Application
-
-    app = Application(full_screen=True)
-    app.run()
+    formatted_texts()
     # prompts()
