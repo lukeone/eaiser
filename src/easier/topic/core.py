@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 
+import os
+import tableprint
+
 from abc import ABCMeta
 from prompt_toolkit import PromptSession, print_formatted_text, HTML
-import tableprint
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.history import FileHistory
 
 
 def entrypoint(alias=None, doc=""):
@@ -82,13 +86,22 @@ class Topic(object, metaclass=TopicMeta):
 
     def __init__(self, context):
         self.context = context
-        self.session = PromptSession("%s> " % self.name)
+        self.session = PromptSession("%s> " % self.name,
+                                     history=FileHistory(self._history_filename()),
+                                     auto_suggest=AutoSuggestFromHistory())
 
     def release(self):
         """relase resource and reference
         """
         self.context = None
         self.session = None
+
+    def _history_filename(self):
+        filename = '.history/{}'.format(self._name)
+        dirname = os.path.dirname(filename)
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
+        return filename
 
     def _get_entrypoint(self, cmd):
         """find entrypoint by command name
@@ -98,7 +111,7 @@ class Topic(object, metaclass=TopicMeta):
         """
         return TopicMeta.topic_entrypoints.get(self._name, {}).get(cmd, None)
 
-    def _get_entrypoints(self):
+    def get_entrypoints(self):
         """return all entrypoint in this topic
 
         :return: all entrypoint data
@@ -124,10 +137,11 @@ class Topic(object, metaclass=TopicMeta):
         entrypoint(self, content)
 
     def command_not_found(self, cmd):
-        print_formatted_text(HTML("<ansired>invalid command</ansired>"))
+        print_formatted_text(HTML('<ansired>invalid command, type "help" for more information</ansired>'))
 
     def topic_not_found(self, name):
-        print_formatted_text(HTML("<ansired>topic '{}' not found</ansired>".format(name)))
+        print_formatted_text(
+            HTML('<ansired>topic "{}" not found, type "list_topics" for more information</ansired>'.format(name)))
 
     @property
     def name(self):
@@ -168,6 +182,12 @@ class Topic(object, metaclass=TopicMeta):
     def exit(self, *args):
         raise EOFError
 
+    @entrypoint(doc="clear screen")
+    def clear(self, *args):
+        """clear screen
+        """
+        os.system("clear")
+
     @entrypoint(doc="show all available commands")
     def help(self, *args, **kwargs):
         rows = []
@@ -175,12 +195,12 @@ class Topic(object, metaclass=TopicMeta):
         mx_cmd_size = len(header[0])
         mx_desc_size = len(header[1])
 
-        for name, obj in self._get_entrypoints().items():
+        for name, obj in self.get_entrypoints().items():
             mx_cmd_size = max(mx_cmd_size, len(name))
             mx_desc_size = max(mx_desc_size, len(obj._doc))
             rows.append((name, obj._doc))
 
-        rows.sort(key=lambda k: "z" if k[0] in ["exit", "quit", "help"] else k[0])
+        rows.sort(key=lambda k: "z" if k[0] in ["exit", "quit", "help", "clear"] else k[0])
         tableprint.table(rows, header, width=(mx_cmd_size + 5, mx_desc_size + 5))
 
 

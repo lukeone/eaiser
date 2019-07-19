@@ -82,5 +82,5 @@ def prompts():
 
 if __name__ == '__main__':
     from prompt_toolkit import Application
-    formatted_texts()
-    # prompts()
+    # formatted_texts()
+    prompts()

@@ -3,6 +3,7 @@ import re
 import tableprint
 
 from .context import Context
+from .completer import CommandCompleter
 
 pattern = re.compile(r"(?P<cmd>\w+) ?(?P<content>.*)?")
 
@@ -35,7 +36,9 @@ def process_input(context):
 
     topic = context.current
 
-    inp = topic.session.prompt().strip()
+    inp = topic.session.prompt(complete_while_typing=True,
+                               completer=CommandCompleter(context),
+                               complete_in_thread=True).strip()
     if not inp:
         return
 
