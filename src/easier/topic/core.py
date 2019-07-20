@@ -7,9 +7,10 @@ from abc import ABCMeta
 from prompt_toolkit import PromptSession, print_formatted_text, HTML
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.completion import Completion
 
 
-def entrypoint(alias=None, doc=""):
+def entrypoint(alias=None, doc="", complete=None):
     """Decorate one method as a command entrypoint. like:
 
             @entrypoint()
@@ -34,6 +35,7 @@ def entrypoint(alias=None, doc=""):
         method._entrypoint = True
         method._flags = alias
         method._doc = doc
+        method.complete = complete
         return method
     return wrap
 
@@ -103,7 +105,7 @@ class Topic(object, metaclass=TopicMeta):
             os.makedirs(dirname)
         return filename
 
-    def _get_entrypoint(self, cmd):
+    def get_entrypoint(self, cmd):
         """find entrypoint by command name
 
         :param cmd: command
@@ -130,16 +132,28 @@ class Topic(object, metaclass=TopicMeta):
         :param cmd: command name, also is entrypoint function name
         :param content: command content, also is entrypoint function arguments
         """
-        entrypoint = self._get_entrypoint(cmd)
-        if not entrypoint:
+        func = self.get_entrypoint(cmd)
+        if not func:
             self.command_not_found(cmd)
             return
-        entrypoint(self, content)
 
-    def command_not_found(self, cmd):
+        args = [content] if content else []
+
+        try:
+            func(self, *args)
+        except TypeError:
+            self.lack_command_options(cmd)
+
+    @staticmethod
+    def command_not_found(cmd):
         print_formatted_text(HTML('<ansired>invalid command, type "help" for more information</ansired>'))
 
-    def topic_not_found(self, name):
+    @staticmethod
+    def lack_command_options(cmd):
+        print_formatted_text(HTML('<ansired>command option error</ansired>'))
+
+    @staticmethod
+    def topic_not_found(name):
         print_formatted_text(
             HTML('<ansired>topic "{}" not found, type "list_topics" for more information</ansired>'.format(name)))
 
@@ -149,7 +163,25 @@ class Topic(object, metaclass=TopicMeta):
         """
         return self._name
 
-    @entrypoint(doc="change topic, eg: > 'select_topic plan'")
+    def _topic_completions(self, content):
+        """ auto complete when typing topic
+
+        :param content: command content
+        :return:
+        """
+
+        commands = self._get_topics()
+        for name, _ in commands.items():
+            yield Completion(
+                name,
+                start_position=-len(content),
+                style='bg:seagreen'
+            )
+
+    @entrypoint(
+        doc="change topic, eg: > 'select_topic plan'",
+        complete="_topic_completions"
+    )
     def select_topic(self, name):
         """change topic
 
@@ -163,7 +195,7 @@ class Topic(object, metaclass=TopicMeta):
         self.context.set_current(topic)
 
     @entrypoint(doc="show all topic")
-    def list_topics(self, *args):
+    def list_topics(self):
         """show topic list
         """
         rows = []
@@ -183,13 +215,13 @@ class Topic(object, metaclass=TopicMeta):
         raise EOFError
 
     @entrypoint(doc="clear screen")
-    def clear(self, *args):
+    def clear(self):
         """clear screen
         """
         os.system("clear")
 
     @entrypoint(doc="show all available commands")
-    def help(self, *args, **kwargs):
+    def help(self):
         rows = []
         header = ("command", "description")
         mx_cmd_size = len(header[0])

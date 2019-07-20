@@ -1,27 +1,9 @@
 # -*- coding: utf-8 -*-
-import re
 import tableprint
 
 from .context import Context
 from .completer import CommandCompleter
-
-pattern = re.compile(r"(?P<cmd>\w+) ?(?P<content>.*)?")
-
-
-def parse_command(text):
-    """extract command and command content from input text
-
-        such as:
-            parse_command("select_topic plan")
-            >> {"command": "select_topic", "content": "plan"}
-
-    :param text: the input text
-    :return:
-    """
-    match = pattern.match(text)
-    if match:
-        return match.groupdict()
-    return None
+from .util import parse_command
 
 
 def process_input(context):
@@ -36,18 +18,16 @@ def process_input(context):
 
     topic = context.current
 
+    context.input_start()
     inp = topic.session.prompt(complete_while_typing=True,
                                completer=CommandCompleter(context),
                                complete_in_thread=True).strip()
-    if not inp:
-        return
+    context.input_over()
 
     parsed = parse_command(inp)
     if parsed:
         cmd, val = parsed["cmd"].strip(), (parsed["content"] or "").strip()
         topic.execute_command(cmd, val)
-    else:
-        topic.command_not_found(inp)
     return topic
 
 

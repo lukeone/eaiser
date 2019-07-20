@@ -15,6 +15,25 @@ class Context(object):
         # define the max size of queue
         self.queue_max_size = 5
 
+        # the realtime input text
+        self.inputting = ""
+
+    def input_start(self):
+        """
+        once input start
+
+        :return:
+        """
+        self.inputting = ""
+
+    def input_over(self):
+        """
+        once input start
+
+        :return:
+        """
+        pass
+
     def set_current(self, topic):
         """
         set current topic
@@ -62,5 +81,3 @@ class Context(object):
             return topic
         topic = TopicMeta.create_topic(name, self)
         return topic
-
-
