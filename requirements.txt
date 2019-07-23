@@ -2,3 +2,5 @@ prompt_toolkit
 pygments
 numpy
 tableprint
+tushare
+pytest

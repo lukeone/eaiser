@@ -172,6 +172,8 @@ class Topic(object, metaclass=TopicMeta):
 
         commands = self._get_topics()
         for name, _ in commands.items():
+            if content and not name.startswith(content):
+                continue
             yield Completion(
                 name,
                 start_position=-len(content),
@@ -195,7 +197,7 @@ class Topic(object, metaclass=TopicMeta):
         self.context.set_current(topic)
 
     @entrypoint(doc="show all topic")
-    def list_topics(self):
+    def list_topic(self):
         """show topic list
         """
         rows = []
@@ -208,7 +210,8 @@ class Topic(object, metaclass=TopicMeta):
             mx_desc_size = max(mx_desc_size, len(tcls._description))
             rows.append((topic, tcls._description))
 
-        tableprint.table(rows, ("topic", "description"), width=(mx_topic_size + 5, mx_desc_size + 5))
+        rows.sort(key=lambda k: "z" if k[0] in ["default"] else k[0])
+        tableprint.table(rows, ("topic", "description"), width=(mx_topic_size + 5, mx_desc_size + 5), style="clean")
 
     @entrypoint(alias=["quit"], doc="quit program")
     def exit(self, *args):
@@ -233,10 +236,10 @@ class Topic(object, metaclass=TopicMeta):
             rows.append((name, obj._doc))
 
         rows.sort(key=lambda k: "z" if k[0] in ["exit", "quit", "help", "clear"] else k[0])
-        tableprint.table(rows, header, width=(mx_cmd_size + 5, mx_desc_size + 5))
+        tableprint.table(rows, header, width=(mx_cmd_size + 5, mx_desc_size + 5), style='grid')
 
 
 class DefaultTopic(Topic):
 
     _name = "default"
-    _description = "default topic"
+    _description = "默认"

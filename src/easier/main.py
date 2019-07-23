@@ -21,6 +21,7 @@ def process_input(context):
     context.input_start()
     inp = topic.session.prompt(complete_while_typing=True,
                                completer=CommandCompleter(context),
+                               refresh_interval=1,
                                complete_in_thread=True).strip()
     context.input_over()
 

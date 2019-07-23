@@ -18,6 +18,8 @@ class CommandCompleter(Completer):
 
         if word == document.text:                       # suppose user is typing command
             for cmd, obj in topic.get_entrypoints().items():
+                if word and not cmd.startswith(word):
+                    continue
                 yield Completion(
                     cmd,
                     start_position=-len(word),
