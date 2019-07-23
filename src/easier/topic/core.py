@@ -141,7 +141,8 @@ class Topic(object, metaclass=TopicMeta):
 
         try:
             func(self, *args)
-        except TypeError:
+        except TypeError as e:
+            print(e)
             self.lack_command_options(cmd)
 
     @staticmethod

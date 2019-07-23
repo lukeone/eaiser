@@ -33,6 +33,7 @@ def process_input(context):
 
 
 def main():
+
     tableprint.banner("Easier Life! Easier Work!")
 
     context = Context()

@@ -5,7 +5,8 @@ import tushare
 import tableprint
 
 from .core import Topic, entrypoint
-from ..util import pandas_to_list
+from ..util import pandas_to_list, CurseHelper, quanjiao2banjiao
+from pypinyin import Style, pinyin
 
 
 class Stock(Topic):
@@ -22,23 +23,6 @@ class Stock(Topic):
 
             get_realtime_quotation("000725")
             get_realtime_quotation(["000001", "000725"])
-
-            code：代码
-            name:名称
-            changepercent:涨跌幅
-            trade:现价
-            open:开盘价
-            high:最高价
-            low:最低价
-            settlement:昨日收盘价
-            volume:成交量
-            turnoverratio:换手率
-            amount:成交金额
-            per:市盈率
-            pb:市净率
-            mktcap:总市值
-            nmc:流通市值
-
         
         :param stocks: string of stock code or list of stock codes
         :return: DataFrame object
@@ -46,7 +30,14 @@ class Stock(Topic):
         assert stocks is not None
         codes = self.normalize(stocks)
         df = tushare.get_realtime_quotes(codes)
+        if df is None:
+            return
+
         df.reset_index()
+        for field in ["open", "price", "low", "high", "pre_close"]:
+            df[field] = df[field].astype('float64')
+        df.round(2)
+
         return df
 
     def get_stock_basis(self, stocks=None):
@@ -93,24 +84,54 @@ class Stock(Topic):
         basis = tushare.get_stock_basics()
         self._stock_basis = basis.reset_index()
 
+    def _calculate_price_changed(self, price, pre_close):
+        """ compute percentage of stock price rise
+
+        :param price: current stock price
+        :param pre_close: last day close price
+        :return: tuple, (ratio, color, symbol)
+        """
+        price, pre_close = float(price), float(pre_close)
+        diff = price - pre_close
+        ratio = diff / pre_close
+
+        if diff > 0: return ratio, CurseHelper.RED, "+"
+        elif diff < 0: return ratio, CurseHelper.GREEN, ""
+        else: return ratio, CurseHelper.YELLOW, ""
+
     @entrypoint(doc="show stock realtime price")
     def watch(self, stocks=None):
+        stocks = stocks.split(" ")
 
-        stdscr = curses.initscr()
-        curses.noecho()
-        curses.cbreak()
+        curse = CurseHelper()
+        columns = ["code", "name", "open", "low", "high", "price"]
+        width = 10
+        tpl0 = "".join(["{%s:<%d}" % (c, width) for c in columns])
+        tpl1 = "{:<%ds}" % width
+
+        # header
+        row0 = tpl0.format(**dict(zip(columns, columns)))
+        row1 = tpl1.format("percentage")
+        curse.scr.addstr(0, 0, row0, curses.color_pair(CurseHelper.CYAN))
+        curse.scr.addstr(0, len(row0.encode("utf-8")), row1, curses.color_pair(CurseHelper.CYAN))
 
         try:
             while 1:
                 quotation = self.get_realtime_quotation(stocks)
                 records = pandas_to_list(quotation)
+                curse.scr.addstr(0, 0, "")
                 for idx, d in enumerate(records):
-                    stdscr.addstr(idx, 0, "{code:<10s}{name:<10s}{price}".format(**d))
-                stdscr.refresh()
+                    name = quanjiao2banjiao(d["name"])
+                    d["name"] = "".join([c[0].upper() for c in pinyin(name, style=Style.FIRST_LETTER)])
+                    ratio, color, sig = self._calculate_price_changed(d["price"], d["pre_close"])
+                    percentage = "%s%.2f%%" % (sig, ratio * 100)
+                    row0 = tpl0.format(**d)
+                    row1 = tpl1.format(percentage)
+                    curse.scr.addstr(idx+1, 0, row0)
+                    curse.scr.addstr(idx+1, len(row0.encode("utf-8")), row1, curses.color_pair(color))
+                    curse.scr.refresh()
                 time.sleep(1)
         except KeyboardInterrupt:
             pass
         finally:
-            curses.echo()
-            curses.nocbreak()
-            curses.endwin()
+            curse.finish()

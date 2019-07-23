@@ -4,3 +4,5 @@ numpy
 tableprint
 tushare
 pytest
+texttable
+pypinyin
