@@ -1,4 +1,4 @@
-# eaiser
-easier life, easier work
-
-do anything with shell
+# INSTALL
+```shell
+pip install git+https://github.com/lukeone/eaiser.git
+```
