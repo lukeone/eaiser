@@ -104,32 +104,44 @@ class Stock(Topic):
         stocks = stocks.split(" ")
 
         curse = CurseHelper()
+        curse.scr.clear()
+
         columns = ["code", "name", "open", "low", "high", "price"]
         width = 10
         tpl0 = "".join(["{%s:<%d}" % (c, width) for c in columns])
         tpl1 = "{:<%ds}" % width
 
         # header
-        row0 = tpl0.format(**dict(zip(columns, columns)))
-        row1 = tpl1.format("percentage")
-        curse.scr.addstr(0, 0, row0, curses.color_pair(CurseHelper.CYAN))
-        curse.scr.addstr(0, len(row0.encode("utf-8")), row1, curses.color_pair(CurseHelper.CYAN))
+        def _add_header():
+            row0 = tpl0.format(**dict(zip(columns, columns)))
+            row1 = tpl1.format("percentage")
+            curse.scr.addstr(0, 0, row0, curses.color_pair(CurseHelper.CYAN))
+            curse.scr.addstr(0, len(row0.encode("utf-8")), row1, curses.color_pair(CurseHelper.CYAN))
 
+        def _add_row(i, d):
+            row0 = tpl0.format(**d)
+            row1 = tpl1.format(d["percentage"])
+            curse.scr.addstr(i+1, 0, row0)
+            curse.scr.addstr(i+1, len(row0.encode("utf-8")), row1, curses.color_pair(d["color"]))
+
+        _add_header()
         try:
             while 1:
                 quotation = self.get_realtime_quotation(stocks)
                 records = pandas_to_list(quotation)
-                curse.scr.addstr(0, 0, "")
-                for idx, d in enumerate(records):
+
+                for d in records:
                     name = quanjiao2banjiao(d["name"])
                     d["name"] = "".join([c[0].upper() for c in pinyin(name, style=Style.FIRST_LETTER)])
                     ratio, color, sig = self._calculate_price_changed(d["price"], d["pre_close"])
                     percentage = "%s%.2f%%" % (sig, ratio * 100)
-                    row0 = tpl0.format(**d)
-                    row1 = tpl1.format(percentage)
-                    curse.scr.addstr(idx+1, 0, row0)
-                    curse.scr.addstr(idx+1, len(row0.encode("utf-8")), row1, curses.color_pair(color))
-                    curse.scr.refresh()
+                    d.update({"ratio": ratio, "color": color, "percentage": percentage})
+
+                records.sort(key=lambda item: -item["ratio"])
+                for idx, d in enumerate(records):
+                    _add_row(idx, d)
+
+                curse.scr.refresh()
                 time.sleep(1)
         except KeyboardInterrupt:
             pass
