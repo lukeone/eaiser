@@ -87,5 +87,44 @@ def quanjiao2banjiao(ustring):
     return "".join(ss)
 
 
+def is_hanzi(uchar):
+    """判断一个unicode是否是汉字"""
+    if uchar >= u'\u4e00' and uchar <= u'\u9fa5':
+        return True
+    else:
+        return False
+
+
+def is_alphabet(uchar):
+    """判断一个unicode是否是英文字母"""
+    if (uchar >= u'\u0041' and uchar <= u'\u005a') or (uchar >= u'\u0061' and uchar <= u'\u007a'):
+        return True
+    else:
+        return False
+
+
+def is_number(uchar):
+    """判断一个unicode是否是数字"""
+    if uchar >= u'\u0030' and uchar <= u'\u0039':
+        return True
+    else:
+        return False
+
+
+def is_other(uchar):
+    """非中文 非数字 非英文字母 """
+    return not (is_hanzi(uchar) or is_alphabet(uchar) or is_number(uchar))
+
+
+def common_ljust(string, width, fillchar=" "):
+    """支持中英文字符对齐"""
+    string = str(string)
+    string_width = sum(map(lambda x: 2 if len(x.encode("utf-8")) > 2 else 1, string))
+    assert width >= string_width
+    return string + fillchar * (width-string_width)
+
+
 if __name__ == "__main__":
-    print(quanjiao2banjiao("京东方Ａ"))
+    # print(quanjiao2banjiao("京东方Ａ"))
+    for c in "京东方Ａ":
+        print(c, is_hanzi(c) or is_other(c))

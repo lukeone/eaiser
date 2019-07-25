@@ -2,11 +2,9 @@
 import curses
 import time
 import tushare
-import tableprint
 
 from .core import Topic, entrypoint
-from ..util import pandas_to_list, CurseHelper, quanjiao2banjiao
-from pypinyin import Style, pinyin
+from ..util import pandas_to_list, CurseHelper, common_ljust
 
 
 class Stock(Topic):
@@ -60,17 +58,39 @@ class Stock(Topic):
             > normalize("中国平安")
               ['601318']
 
+            > normalize(["上证指数", "深圳成指"])
+
         :param stocks:
         :return: string of stock code, or list
         """
+        # indexs = topic.normalize(["上证指数", "深圳成指", "沪深300指数", "上证50", "中小板", "创业板"])
+        # indexs_std = ['sh', 'sz', 'hs300', 'sz50', 'zxb', 'cyb']
+        index_data = {
+            "上证指数": "sh",
+            "深圳成指": "sz",
+            "沪深300指数": "hs300",
+            "上证50": "sz50",
+            "中小板": "zxb",
+            "创业板": "cyb"
+        }
+
         self.check_load_stock_basis()
         if isinstance(stocks, str):
             stocks = [stocks]
         else:
             stocks = list(stocks)
 
+        indexes = []
+        for code in stocks:
+            if code in index_data:
+                indexes.append(index_data[code])
+                continue
+            if code in index_data.values():
+                indexes.append(code)
+
         basis = self._stock_basis
-        return basis[basis["name"].isin(stocks) | basis["code"].isin(stocks)]["code"].to_list()
+        stocks = basis[basis["name"].isin(stocks) | basis["code"].isin(stocks)]["code"].to_list()
+        return indexes + stocks
 
     def check_load_stock_basis(self):
         if self._stock_basis is not None and self._stock_basis.size:
@@ -95,9 +115,12 @@ class Stock(Topic):
         diff = price - pre_close
         ratio = diff / pre_close
 
-        if diff > 0: return ratio, CurseHelper.RED, "+"
-        elif diff < 0: return ratio, CurseHelper.GREEN, ""
-        else: return ratio, CurseHelper.YELLOW, ""
+        if diff > 0:
+            return ratio, CurseHelper.RED, "+"
+        elif diff < 0:
+            return ratio, CurseHelper.GREEN, ""
+        else:
+            return ratio, CurseHelper.YELLOW, ""
 
     @entrypoint(doc="show stock realtime price")
     def watch(self, stocks=None):
@@ -106,23 +129,21 @@ class Stock(Topic):
         curse = CurseHelper()
         curse.scr.clear()
 
+        width = 12
         columns = ["code", "name", "open", "low", "high", "price"]
-        width = 10
-        tpl0 = "".join(["{%s:<%d}" % (c, width) for c in columns])
-        tpl1 = "{:<%ds}" % width
 
         # header
         def _add_header():
-            row0 = tpl0.format(**dict(zip(columns, columns)))
-            row1 = tpl1.format("percentage")
+            row0 = "".join([common_ljust(s, width) for s in columns])
+            row1 = common_ljust("percentage", width)
             curse.scr.addstr(0, 0, row0, curses.color_pair(CurseHelper.CYAN))
-            curse.scr.addstr(0, len(row0.encode("utf-8")), row1, curses.color_pair(CurseHelper.CYAN))
+            curse.scr.addstr(0, (len(columns)-1) * width, row1, curses.color_pair(CurseHelper.CYAN))
 
         def _add_row(i, d):
-            row0 = tpl0.format(**d)
-            row1 = tpl1.format(d["percentage"])
+            row0 = "".join(common_ljust(d[col], width) for col in columns)
+            row1 = common_ljust(d["percentage"], width)
             curse.scr.addstr(i+1, 0, row0)
-            curse.scr.addstr(i+1, len(row0.encode("utf-8")), row1, curses.color_pair(d["color"]))
+            curse.scr.addstr(i+1,  (len(columns)-1) * width, row1, curses.color_pair(d["color"]))
 
         _add_header()
         try:
@@ -131,8 +152,6 @@ class Stock(Topic):
                 records = pandas_to_list(quotation)
 
                 for d in records:
-                    name = quanjiao2banjiao(d["name"])
-                    d["name"] = "".join([c[0].upper() for c in pinyin(name, style=Style.FIRST_LETTER)])
                     ratio, color, sig = self._calculate_price_changed(d["price"], d["pre_close"])
                     percentage = "%s%.2f%%" % (sig, ratio * 100)
                     d.update({"ratio": ratio, "color": color, "percentage": percentage})
