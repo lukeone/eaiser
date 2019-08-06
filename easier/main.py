@@ -4,6 +4,7 @@ import tableprint
 from .context import Context
 from .completer import CommandCompleter
 from .util import parse_command
+from .topic import check_schema_migration
 
 
 def process_input(context):
@@ -34,9 +35,10 @@ def process_input(context):
 
 def main():
 
+    check_schema_migration()
     tableprint.banner("Easier Life! Easier Work!")
-
     context = Context()
+
     while True:
         try:
             process_input(context)

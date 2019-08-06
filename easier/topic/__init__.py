@@ -3,6 +3,7 @@ import os
 import importlib
 
 from .core import (Topic, TopicMeta, DefaultTopic)
+from ..db import BaseModel
 
 __all__ = (Topic, TopicMeta, DefaultTopic)
 
@@ -19,3 +20,7 @@ def load_topic_module():
 
 
 load_topic_module()
+
+
+def check_schema_migration():
+    BaseModel.check_schema_migration()

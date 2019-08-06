@@ -137,13 +137,13 @@ class Stock(Topic):
             row0 = "".join([common_ljust(s, width) for s in columns])
             row1 = common_ljust("percentage", width)
             curse.scr.addstr(0, 0, row0, curses.color_pair(CurseHelper.CYAN))
-            curse.scr.addstr(0, (len(columns)-1) * width, row1, curses.color_pair(CurseHelper.CYAN))
+            curse.scr.addstr(0, len(columns) * width, row1, curses.color_pair(CurseHelper.CYAN))
 
         def _add_row(i, d):
             row0 = "".join(common_ljust(d[col], width) for col in columns)
             row1 = common_ljust(d["percentage"], width)
             curse.scr.addstr(i+1, 0, row0)
-            curse.scr.addstr(i+1,  (len(columns)-1) * width, row1, curses.color_pair(d["color"]))
+            curse.scr.addstr(i+1, len(columns) * width, row1, curses.color_pair(d["color"]))
 
         _add_header()
         try:

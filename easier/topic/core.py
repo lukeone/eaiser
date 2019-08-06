@@ -239,6 +239,14 @@ class Topic(object, metaclass=TopicMeta):
         rows.sort(key=lambda k: "z" if k[0] in ["exit", "quit", "help", "clear"] else k[0])
         tableprint.table(rows, header, width=(mx_cmd_size + 5, mx_desc_size + 5), style='grid')
 
+    def print_success(self):
+        print_formatted_text("")
+        print_formatted_text(HTML('<ansigreen>SUCCESS!</ansigreen>'))
+
+    def print_fail(self):
+        print_formatted_text("")
+        print_formatted_text((HTML('<ansired>ERROR!</ansired>')))
+
 
 class DefaultTopic(Topic):
 
