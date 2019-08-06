@@ -1,6 +1,3 @@
-[submodule "easierdb"]
-	path = easierdb
-	url = git@github.com:lukeone/easierdb.git
 [submodule "easier/storage"]
 	path = easier/storage
 	url = git@github.com:lukeone/easierdb.git
