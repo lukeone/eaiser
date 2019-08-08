@@ -35,9 +35,12 @@ class Bullet(BaseModel):
         • incomplete
         x completed
         < move to future log
+
+    how future bullet defined.
+        when `date_str` is blank or `date_str` is a future date (the value greater than today).
     """
 
-    date_str = pw.CharField(null=False, index=True)
+    date_str = pw.CharField(null=False, index=True, default="")
     content = pw.CharField(null=False)
     bullet_type = pw.CharField(choices=list(zip(BulletType.keys(), BulletType.keys())), index=True)
     task_status = pw.CharField(choices=list(zip(TaskStatus.keys(), TaskStatus.keys())), index=True, default="incomplete")

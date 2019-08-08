@@ -10,7 +10,7 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.completion import Completion
 
 
-def entrypoint(alias=None, doc="", complete=None):
+def entrypoint(alias=None, doc="", complete=None, base=False):
     """Decorate one method as a command entrypoint. like:
 
             @entrypoint()
@@ -36,6 +36,7 @@ def entrypoint(alias=None, doc="", complete=None):
         method._flags = alias
         method._doc = doc
         method.complete = complete
+        method._base = base
         return method
     return wrap
 
@@ -183,7 +184,8 @@ class Topic(object, metaclass=TopicMeta):
 
     @entrypoint(
         doc="change topic, eg: > 'select_topic plan'",
-        complete="_topic_completions"
+        complete="_topic_completions",
+        base=True,
     )
     def select_topic(self, name):
         """change topic
@@ -197,7 +199,7 @@ class Topic(object, metaclass=TopicMeta):
             return
         self.context.set_current(topic)
 
-    @entrypoint(doc="show all topic")
+    @entrypoint(doc="show all topic", base=True)
     def list_topic(self):
         """show topic list
         """
@@ -214,30 +216,41 @@ class Topic(object, metaclass=TopicMeta):
         rows.sort(key=lambda k: "z" if k[0] in ["default"] else k[0])
         tableprint.table(rows, ("topic", "description"), width=(mx_topic_size + 5, mx_desc_size + 5), style="clean")
 
-    @entrypoint(alias=["quit"], doc="quit program")
+    @entrypoint(alias=["quit"], doc="quit program", base=True)
     def exit(self, *args):
         raise EOFError
 
-    @entrypoint(doc="clear screen")
+    @entrypoint(doc="clear screen", base=True)
     def clear(self):
         """clear screen
         """
         os.system("clear")
 
-    @entrypoint(doc="show all available commands")
+    @entrypoint(doc="show all available commands", base=True)
     def help(self):
-        rows = []
         header = ("command", "description")
         mx_cmd_size = len(header[0])
         mx_desc_size = len(header[1])
+        bases = []
+        bizs = []
 
         for name, obj in self.get_entrypoints().items():
             mx_cmd_size = max(mx_cmd_size, len(name))
             mx_desc_size = max(mx_desc_size, len(obj._doc))
-            rows.append((name, obj._doc))
+            if obj._base:
+                bases.append((name, obj._doc))
+            else:
+                bizs.append((name, obj._doc))
 
-        rows.sort(key=lambda k: "z" if k[0] in ["exit", "quit", "help", "clear"] else k[0])
-        tableprint.table(rows, header, width=(mx_cmd_size + 5, mx_desc_size + 5), style='grid')
+        if bizs:
+            bizs.sort()
+            print_formatted_text("\nbiz commands:")
+            tableprint.table(bizs, header, width=(mx_cmd_size + 5, mx_desc_size + 5), style='grid')
+
+        if bases:
+            print_formatted_text("\ncommon commands:")
+            bases.sort()
+            tableprint.table(bases, header, width=(mx_cmd_size + 5, mx_desc_size + 5), style='grid')
 
     def print_success(self):
         print_formatted_text("")

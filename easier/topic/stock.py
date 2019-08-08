@@ -21,7 +21,7 @@ class Stock(Topic):
 
             get_realtime_quotation("000725")
             get_realtime_quotation(["000001", "000725"])
-        
+
         :param stocks: string of stock code or list of stock codes
         :return: DataFrame object
         """
