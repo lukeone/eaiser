@@ -17,6 +17,7 @@ TaskStatus = {
     "incomplete": "•",
     "complete": "x",
     "movefuture": "<",
+    "delaycomplete": "X",       # 延期完成
 }
 
 
@@ -47,6 +48,26 @@ class Bullet(BaseModel):
     create_date = pw.DateTimeField(default=dte.now)
     update_date = pw.DateTimeField(default=dte.now)
 
+    def show_text(self, with_date=False):
+        if self.bullet_type == "task":
+            sign = TaskStatus.get(self.task_status)
+        else:
+            sign = BulletType[self.bullet_type]
+
+        if with_date:
+            txt = "{date}： {sign} {content} [{id}]"
+        else:
+            txt = "{sign} {content} [{id}]"
+
+        params = {
+            "date": self.date_str,
+            "sign": sign,
+            "content": self.content.strip(),
+            "id": self.id,
+        }
+        line = HTML(txt.format(**params))
+        return line
+
 
 class BujoTopic(Topic):
 
@@ -56,6 +77,16 @@ class BujoTopic(Topic):
     def get_today_bullets(self):
         today = dte.today().strftime("%Y-%m-%d")
         bullets = Bullet.select().where(Bullet.date_str == today).order_by(Bullet.create_date.desc())
+        return bullets
+
+    def get_all_bullets(self):
+        bullets = Bullet.select().order_by(Bullet.create_date.desc())
+        return bullets
+
+    def get_incomplete_tasks(self):
+        bullets = Bullet.select() \
+                        .where(Bullet.bullet_type == "task", Bullet.task_status == "incomplete") \
+                        .order_by(Bullet.create_date.desc())
         return bullets
 
     @entrypoint(doc="eg: `> add_bullet [task|note|event] content`")
@@ -104,12 +135,11 @@ class BujoTopic(Topic):
 
     @entrypoint(doc="eg: `set_task_status idx [complete|movefuture|incomplete]`")
     def set_task_status(self, text):
-        bullets = self.get_today_bullets()
         text = text.strip()
         try:
             idx, content = text.split(" ", 1)
             idx = int(idx.strip())
-            bullet = bullets[idx - 1]
+            bullet = Bullet.get(Bullet.id == idx)
         except Exception:
             self.print_fail()
             return
@@ -123,11 +153,23 @@ class BujoTopic(Topic):
         if bullets:
             print_formatted_text("")
 
-        for idx, bullet in enumerate(bullets):
-            if bullet.bullet_type == "task":
-                sign = TaskStatus.get(bullet.task_status)
-            else:
-                sign = BulletType[bullet.bullet_type]
-            line = HTML("{} {}".format(sign, bullet.content.strip()))
-            print_formatted_text(line)
+        for bullet in bullets:
+            print_formatted_text(bullet.show_text())
+        self.print_success()
+
+    @entrypoint(doc="list history bullet")
+    def list_history_bullet(self):
+        bullets = self.get_all_bullets()
+        if bullets:
+            print_formatted_text("")
+
+        for bullet in bullets:
+            print_formatted_text(bullet.show_text(with_date=True))
+        self.print_success()
+
+    @entrypoint(doc="list incomplete task")
+    def list_incomplete_task(self):
+        tasks = self.get_incomplete_tasks()
+        for bullet in tasks:
+            print_formatted_text(bullet.show_text(with_date=True))
         self.print_success()
