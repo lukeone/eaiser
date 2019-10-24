@@ -12,7 +12,6 @@ BulletType = {
     "note": "-",
 }
 
-
 TaskStatus = {
     "incomplete": "•",
     "complete": "x",
@@ -31,10 +30,17 @@ class Bullet(BaseModel):
             noteworth moments in time, such as date, meeting...
         - Note
             things you don't want to forget. such as thought,idea,inspiration...
+        * goal
+            weekly\monthly\yearly goal
 
     tasks has serveral status, as below.
         • incomplete
         x completed
+        < move to future log
+
+    goal has serveral status, as below.
+        * doing
+        x incomplete
         < move to future log
 
     how future bullet defined.
@@ -45,19 +51,21 @@ class Bullet(BaseModel):
     content = pw.CharField(null=False)
     bullet_type = pw.CharField(choices=list(zip(BulletType.keys(), BulletType.keys())), index=True)
     task_status = pw.CharField(choices=list(zip(TaskStatus.keys(), TaskStatus.keys())), index=True, default="incomplete")
+    parent = pw.ForeignKeyField("self", related_name='children', null=True)
     create_date = pw.DateTimeField(default=dte.now)
     update_date = pw.DateTimeField(default=dte.now)
 
-    def show_text(self, with_date=False):
+    def get_show_text(self, with_date=False, align=0):
         if self.bullet_type == "task":
             sign = TaskStatus.get(self.task_status)
         else:
             sign = BulletType[self.bullet_type]
 
+        txt = " " * (align * 4)
         if with_date:
-            txt = "{date}： {sign} {content} [{id}]"
+            txt += "{date}： {sign} {content} [{id}]"
         else:
-            txt = "{sign} {content} [{id}]"
+            txt += "{sign} {content} [{id}]"
 
         params = {
             "date": self.date_str,
@@ -67,6 +75,11 @@ class Bullet(BaseModel):
         }
         line = HTML(txt.format(**params))
         return line
+
+    def print_text(self, parent_depth=0, with_date=False):
+        print_formatted_text(self.get_show_text(align=parent_depth, with_date=with_date))
+        for child in self.children:
+            child.print_text(parent_depth=parent_depth + 1, with_date=with_date)
 
 
 class BujoTopic(Topic):
@@ -80,12 +93,14 @@ class BujoTopic(Topic):
         return bullets
 
     def get_all_bullets(self):
-        bullets = Bullet.select().order_by(Bullet.create_date.desc())
+        bullets = Bullet.select().where(Bullet.parent == None).order_by(Bullet.create_date.desc())
         return bullets
 
     def get_incomplete_tasks(self):
         bullets = Bullet.select() \
-                        .where(Bullet.bullet_type == "task", Bullet.task_status == "incomplete") \
+                        .where(Bullet.bullet_type == "task",
+                               Bullet.parent == None,
+                               Bullet.task_status == "incomplete") \
                         .order_by(Bullet.create_date.desc())
         return bullets
 
@@ -101,6 +116,24 @@ class BujoTopic(Topic):
         today = dte.today().strftime("%Y-%m-%d")
         t = Bullet(date_str=today,
                    bullet_type=btype,
+                   content=content.strip())
+        t.save()
+        self.print_success()
+
+    @entrypoint(doc="eg: `> add_sub_task parent_id content`")
+    def add_sub_task(self, text):
+        try:
+            text = text.strip()
+            parent_id, content = text.split(" ", 1)
+            parent = Bullet.get(Bullet.id == parent_id)
+        except Exception:
+            self.print_fail()
+            return
+
+        today = dte.today().strftime("%Y-%m-%d")
+        t = Bullet(date_str=today,
+                   bullet_type="task",
+                   parent=parent,
                    content=content.strip())
         t.save()
         self.print_success()
@@ -130,6 +163,7 @@ class BujoTopic(Topic):
             self.print_fail()
             return
         bullet.content = content
+        bullet.update_date = dte.now()
         bullet.save()
         self.print_success()
 
@@ -154,7 +188,7 @@ class BujoTopic(Topic):
             print_formatted_text("")
 
         for bullet in bullets:
-            print_formatted_text(bullet.show_text())
+            bullet.print_text()
         self.print_success()
 
     @entrypoint(doc="list history bullet")
@@ -164,12 +198,12 @@ class BujoTopic(Topic):
             print_formatted_text("")
 
         for bullet in bullets:
-            print_formatted_text(bullet.show_text(with_date=True))
+            bullet.print_text()
         self.print_success()
 
     @entrypoint(doc="list incomplete task")
     def list_incomplete_task(self):
         tasks = self.get_incomplete_tasks()
         for bullet in tasks:
-            print_formatted_text(bullet.show_text(with_date=True))
+            bullet.print_text(with_date=True)
         self.print_success()
